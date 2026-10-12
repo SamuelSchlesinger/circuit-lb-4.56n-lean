@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      # The hosted image includes several large SDKs that this Lean build never uses. Reclaiming
+      # them leaves enough room for the Lean toolchain, Mathlib cache, and exported proof cone.
+      - name: Reclaim unused runner disk
+        run: |
+          sudo rm -rf \
+            /usr/local/lib/android \
+            /usr/local/.ghcup \
+            /usr/share/dotnet \
+            /opt/hostedtoolcache/CodeQL
+          docker system prune --all --force || true
+          df -h /
+      - uses: actions/checkout@v5
+      # Builds the proofs and checks the axioms of all six theorems (`Main.lean`).
+      - uses: leanprover/lean-action@v1
+        with:
+          build-args: "--wfail"
+          # Restoring all of `.lake` can transiently exhaust the runner disk. Mathlib's cache
+          # supplies the large dependency artifacts without caching this project's whole tree.
+          use-github-cache: false
+          use-mathlib-cache: true
+      # Re-checks the dependency cone of the six theorems with every external checker bundled
+      # with the toolchain: `leanchecker-paranoid`, `lean4lean`, `nanoda`, `con-leche`, and
+      # `con-ron`, and audits the axioms. Only the cone is exported: the whole environment
+      # contains Lake, through Mathlib's import-graph dependency, and Lake's build framework
+      # declares axioms that the external checkers reject.
+      - name: Install bubblewrap for the lake check sandbox
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+      - name: Export the dependency cone of the six theorems
+        run: |
+          lake env leanexport Main -- Proofs.lowerBound_gaussian Proofs.lowerBound_456 \
+            Proofs.lowerBound_four Proofs.averageCase_gaussian Proofs.averageCase_456 \
+            Proofs.averageCase_four > cone.ndjson
+      - name: Check the cone with every bundled checker
+        run: lake check --from-export cone.ndjson --paranoid

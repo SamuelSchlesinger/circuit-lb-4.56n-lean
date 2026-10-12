@@ -1,0 +1,30 @@
+name = "circuit_lb_456_lean"
+defaultTargets = ["Main"]
+
+[leanOptions]
+pp.unicode.fun = true
+autoImplicit = false
+weak.linter.mathlibStandardSet = true
+
+[[require]]
+name = "mathlib"
+scope = "leanprover-community"
+rev = "9a6fbe02d04cd1f582eac50a8a4e34ad67582169"
+
+[[require]]
+name = "cslib"
+git = "https://github.com/leanprover/cslib"
+rev = "89dc6fbada3e8f6dc2a132e67214da9fb0fa7039"
+
+# The review boundary: definitions and the claim. Imports only Mathlib and CSLib.
+[[lean_lib]]
+name = "Statement"
+
+# The proof.
+[[lean_lib]]
+name = "Proofs"
+globs = ["Proofs.+"]
+
+# The six lower-bound theorems and their axiom checks.
+[[lean_lib]]
+name = "Main"
